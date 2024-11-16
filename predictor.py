@@ -1,1 +1,0 @@
-print("Tanush is a bitch")

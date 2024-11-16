@@ -44,7 +44,19 @@ def rank_conferences(df):
     max_rank = df['Conference Rank'].max()  # Find the maximum rank among real conferences
     df.loc[df['Conference'] == 'FBSind', 'Conference Rank'] = max_rank + 1
 
-    return df
+    return df, conference_strength
+
+def save_conference_ranking(conference_strength, output_file="conference_ranking.csv"):
+    """
+    Saves the conference rankings to a separate file for easy reference.
+    """
+    # Reset index and prepare data
+    conference_ranking = conference_strength.reset_index()[['Conference', 'Conference Score']]
+    conference_ranking['Conference Rank'] = conference_ranking['Conference Score'].rank(ascending=False).astype(int)
+
+    # Save to CSV
+    conference_ranking.to_csv(output_file, index=False)
+    print(f"Conference rankings saved to {output_file}!")
 
 def main():
     # Load cleaned data
@@ -52,12 +64,17 @@ def main():
     df = pd.read_csv(cleaned_file)
 
     # Rank conferences and save updated data
-    df = rank_conferences(df)
-    output_file = '/Users/bosnianboi/Documents/GitHub/I310D_project/ranked_teams.csv'
-    df.to_csv(output_file, index=False)
-    print(f"Team rankings with conference strength saved to {output_file}")
+    df, conference_strength = rank_conferences(df)
+    stats_file = '/Users/bosnianboi/Documents/GitHub/I310D_project/stats.csv'
+    df.to_csv(stats_file, index=False)
+    print(f"Team rankings with conference strength saved to {stats_file}")
+
+    # Save separate conference ranking
+    conf_ranking_file = '/Users/bosnianboi/Documents/GitHub/I310D_project/conference_ranking.csv'
+    save_conference_ranking(conference_strength, conf_ranking_file)
 
 if __name__ == "__main__":
     main()
+
 
 
