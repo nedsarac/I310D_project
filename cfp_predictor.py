@@ -51,35 +51,51 @@ def calculate_team_scores(input_file, output_file="team_score.csv"):
     df[['Team Name', 'Conference', 'Team Score']].to_csv(output_file, index=False)
     print(f"Team scores saved to {output_file}!")
 
-def get_top_12_teams(conference_ranking_file, team_score_file, output_file="top_12_seeds.csv"):
+def get_top_12_teams(conference_ranking_file, team_score_file, output_file="cfp_prediction.csv"):
     """Determine the top 12 teams based on conference rankings and team scores."""
     conf_ranking = pd.read_csv(conference_ranking_file)
     team_scores = pd.read_csv(team_score_file)
 
-    # Step 1: Get the top 2 conferences
-    top_2_conferences = conf_ranking.nsmallest(2, 'Conference Rank')['Conference'].tolist()
+    # Step 1: Get the top 4 conferences
+    top_4_conferences = conf_ranking.nsmallest(4, 'Conference Rank')['Conference'].tolist()
+    top_2_conferences = top_4_conferences[:2]
+    next_2_conferences = top_4_conferences[2:]
 
-    # Step 2: Get the best team from each of the top 2 conferences
-    best_teams = []
-    for conference in top_2_conferences:
+    # Step 2: Get the best team from the top 4 conferences
+    top_4_teams = []
+    for conference in top_4_conferences:
         best_team = team_scores[team_scores['Conference'] == conference].sort_values(by='Team Score', ascending=False).iloc[0]
-        best_teams.append(best_team)
+        top_4_teams.append(best_team)
 
-    # Sort the best two teams by Team Score
-    best_teams_df = pd.DataFrame(best_teams).sort_values(by='Team Score', ascending=False).reset_index(drop=True)
-    best_teams_df['Seed'] = [1, 2]
+    # Step 3: Assign seeds to the top 4 teams
+    top_4_df = pd.DataFrame(top_4_teams)
+    top_4_df = top_4_df.sort_values(by='Team Score', ascending=False).reset_index(drop=True)
+    top_4_df.loc[:1, 'Seed'] = [1, 2]  # Spots 1 and 2
+    top_4_df.loc[2:, 'Seed'] = [3, 4]  # Spots 3 and 4
 
-    # Step 3: Get the next 10 best teams
-    remaining_teams = team_scores[~team_scores['Team Name'].isin(best_teams_df['Team Name'])]
-    top_10_remaining = remaining_teams.sort_values(by='Team Score', ascending=False).head(10)
-    top_10_remaining['Seed'] = range(3, 13)
+    # Step 4: Get the highest-ranked team from conferences ranked 5-10
+    remaining_conferences = conf_ranking[(conf_ranking['Conference Rank'] > 4) & (conf_ranking['Conference Rank'] <= 10)]['Conference'].tolist()
+    remaining_teams = team_scores[team_scores['Conference'].isin(remaining_conferences)]
+    seed_5_team = remaining_teams.sort_values(by='Team Score', ascending=False).iloc[0]
 
-    # Step 4: Combine the top 2 and next 10 teams
-    top_12_teams = pd.concat([best_teams_df, top_10_remaining]).reset_index(drop=True)
-    top_12_teams = top_12_teams[['Seed', 'Team Name', 'Conference', 'Team Score']]
+    # Step 5: Get the remaining best teams
+    crossed_off_teams = top_4_df['Team Name'].tolist() + [seed_5_team['Team Name']]
+    remaining_teams = team_scores[~team_scores['Team Name'].isin(crossed_off_teams)]
+    remaining_teams = remaining_teams.sort_values(by='Team Score', ascending=False).head(7)
+
+    # Step 6: Assign seeds
+    seed_5_df = pd.DataFrame([seed_5_team]).reset_index(drop=True)
+    seed_5_df['Seed'] = [5]
+
+    remaining_teams = remaining_teams.reset_index(drop=True)
+    remaining_teams['Seed'] = range(6, 13)
+
+    # Combine all seeds into the final DataFrame
+    final_df = pd.concat([top_4_df, seed_5_df, remaining_teams]).reset_index(drop=True)
+    final_df = final_df[['Seed', 'Team Name', 'Conference', 'Team Score']]
 
     # Save to CSV
-    top_12_teams.to_csv(output_file, index=False)
+    final_df.to_csv(output_file, index=False)
     print(f"Top 12 seeds saved to {output_file}!")
 
 def main():
@@ -92,12 +108,11 @@ def main():
     # Calculate team scores and save to team_score.csv
     calculate_team_scores(stats_file, team_score_file)
 
-    # Determine top 12 teams and save to top_12_seeds.csv
+    # Determine top 12 teams and save to cfp_prediction.csv
     get_top_12_teams(conference_ranking_file, team_score_file, top_12_seeds_file)
 
 if __name__ == "__main__":
     main()
-
 
 
 
