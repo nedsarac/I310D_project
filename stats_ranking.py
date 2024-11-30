@@ -1,7 +1,7 @@
 import pandas as pd
 
 def rank_conferences(df):
-    """Calculate conference rankings and assign them to teams, excluding 'FBSind'."""
+    """Calculate conference rankings and assign them to teams, incorporating SOR."""
     # Exclude 'FBSind' from the calculation
     conference_df = df[df['Conference'] != 'FBSind']
 
@@ -9,7 +9,8 @@ def rank_conferences(df):
     conference_strength = conference_df.groupby('Conference').agg({
         'Win Percentage': 'mean',
         'Point Differential': 'mean',
-        'Conf Wins': 'sum'
+        'Conf Wins': 'sum',
+        'SOR': 'mean'  # Include SOR in aggregation
     })
 
     # Add the number of teams in each conference
@@ -20,23 +21,20 @@ def rank_conferences(df):
 
     # Calculate the Conference Score
     conference_strength['Conference Score'] = (
-        conference_strength['Win Percentage'] * 0.5 + 
-        conference_strength['Point Differential'] * 0.3 +
-        conference_strength['Avg Conf Wins'] * 0.2
+        conference_strength['Win Percentage'] * 0.3 +  
+        conference_strength['Point Differential'] * 0.1 +
+        conference_strength['Avg Conf Wins'] * 0.3 +
+        (1 / conference_strength['SOR']) * 0.3  # Invert SOR for scoring
     )
 
     # Sort conferences by their score
     conference_strength = conference_strength.sort_values(by='Conference Score', ascending=False)
 
     # Print the conference rankings for verification
-    print("Conference Rankings (excluding FBSind):")
+    print("Conference Rankings (including SOR):")
     print(conference_strength[['Conference Score', 'Team Count']])
 
-    # Map Conference Score to teams in the main DataFrame, excluding FBSind
-    conference_score_dict = conference_strength['Conference Score'].to_dict()
-    df['Conference Score'] = df['Conference'].map(conference_score_dict)
-
-    # Rank conferences and map the rank to teams
+    # Map Conference Rank to teams in the main DataFrame, excluding FBSind
     conference_rankings = conference_strength['Conference Score'].rank(ascending=False).to_dict()
     df['Conference Rank'] = df['Conference'].map(conference_rankings)
 
@@ -66,8 +64,11 @@ def main():
     # Rank conferences and save updated data
     df, conference_strength = rank_conferences(df)
     stats_file = '/Users/bosnianboi/Documents/GitHub/I310D_project/stats.csv'
+
+    # Drop Conference Score column before saving stats.csv
+    df.drop(columns=['Conference Score'], inplace=True)
     df.to_csv(stats_file, index=False)
-    print(f"Team rankings with conference strength saved to {stats_file}")
+    print(f"Team rankings with conference rank saved to {stats_file}")
 
     # Save separate conference ranking
     conf_ranking_file = '/Users/bosnianboi/Documents/GitHub/I310D_project/conference_ranking.csv'
@@ -75,6 +76,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
