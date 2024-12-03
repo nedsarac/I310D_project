@@ -65,8 +65,9 @@ def main():
     df, conference_strength = rank_conferences(df)
     stats_file = '/Users/bosnianboi/Documents/GitHub/I310D_project/stats.csv'
 
-    # Drop Conference Score column before saving stats.csv
-    df.drop(columns=['Conference Score'], inplace=True)
+    # Ensure 'Conference Score' is not in df before saving
+    if 'Conference Score' in df.columns:
+        df.drop(columns=['Conference Score'], inplace=True)
     df.to_csv(stats_file, index=False)
     print(f"Team rankings with conference rank saved to {stats_file}")
 
