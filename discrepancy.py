@@ -1,8 +1,16 @@
 import pandas as pd
-import re
 
-# Team name mapping for SOR matching
-TEAM_NAME_MAPPING = {
+# File paths
+raw_cfb_data_path = '/Users/bosnianboi/Documents/GitHub/I310D_project/raw_cfb_data.csv'
+post_week13_wl_only_path = '/Users/bosnianboi/Documents/GitHub/I310D_project/post_week13_wl_only.csv'
+output_path = '/Users/bosnianboi/Documents/GitHub/I310D_project/discrepancies.csv'
+
+# Read in data
+raw_data = pd.read_csv(raw_cfb_data_path)
+post_week13_data = pd.read_csv(post_week13_wl_only_path)
+
+# Abbreviation to full team name mapping
+name_mapping = {
     "ARMY": "Army Black Knights",
     "TULN": "Tulane Green Wave",
     "NAVY": "Navy Midshipmen",
@@ -11,8 +19,8 @@ TEAM_NAME_MAPPING = {
     "USF": "South Florida Bulls",
     "UTSA": "UTSA Roadrunners",
     "CLT": "Charlotte 49ers",
-    "UAB": "UAB Blazers",
     "UNT": "North Texas Mean Green",
+    "UAB": "UAB Blazers",
     "RICE": "Rice Owls",
     "TEM": "Temple Owls",
     "TLSA": "Tulsa Golden Hurricane",
@@ -22,8 +30,8 @@ TEAM_NAME_MAPPING = {
     "MIA": "Miami Hurricanes",
     "LOU": "Louisville Cardinals",
     "GT": "Georgia Tech Yellow Jackets",
-    "SYR": "Syracuse Orange",
     "DUKE": "Duke Blue Devils",
+    "SYR": "Syracuse Orange",
     "UVA": "Virginia Cavaliers",
     "VT": "Virginia Tech Hokies",
     "PITT": "Pittsburgh Panthers",
@@ -132,93 +140,32 @@ TEAM_NAME_MAPPING = {
     "GAST": "Georgia State Panthers",
     "UL": "Louisiana Ragin' Cajuns",
     "ARST": "Arkansas State Red Wolves",
-    "USA": "South Alabama Jaguars",
     "TXST": "Texas State Bobcats",
+    "USA": "South Alabama Jaguars",
     "ULM": "UL Monroe Warhawks",
     "TROY": "Troy Trojans",
-    "USM": "Southern Miss Golden Eagles",
+    "USM": "Southern Miss Golden Eagles"
 }
 
-def load_data(file_name):
-    """Load raw data from a CSV file."""
-    return pd.read_csv(file_name)
+# Standardize team names in raw_data
+raw_data["Team Name"] = raw_data["Team Name"].replace(name_mapping)
 
-def clean_wl_column(column):
-    """Clean the W-L column to ensure it has the correct format."""
-    column = column.fillna('0-0')  # Fill NaN with '0-0'
-    column = column.replace(r'^\s*$', '0-0', regex=True)  # Replace empty strings with '0-0'
-    column = column.apply(lambda x: x if re.match(r'^\d+-\d+$', x) else '0-0')  # Ensure format is 'number-number'
-    return column
+# Merge datasets on school name
+merged_data = pd.merge(
+    post_week13_data.rename(columns={"School": "Team Name", "Overall W-L": "Overall W-L_post_week13"}),
+    raw_data.rename(columns={"Overall W-L": "Overall W-L_raw"}),
+    on="Team Name",
+    how="outer"
+)
 
-def parse_ap_column(ap_column):
-    """Parse the AP column to extract wins and losses."""
-    ap_column = clean_wl_column(ap_column)  # Ensure it's cleaned in the same way as other W-L columns
-    ap_split = ap_column.str.split('-', expand=True).astype(int)
-    return ap_split[0], ap_split[1]  # Returns AP Wins, AP Losses
+# Identify discrepancies
+merged_data["Discrepancy"] = merged_data["Overall W-L_post_week13"] != merged_data["Overall W-L_raw"]
 
-def transform_data(df, sor_file):
-    """Clean and transform the raw data."""
-    # Load SOR data
-    sor_df = pd.read_csv(sor_file)
+# Filter discrepancies
+discrepancies = merged_data[merged_data["Discrepancy"]]
 
-    # Match team names and add SOR
-    df['Matched Team Name'] = df['Team Name'].map(TEAM_NAME_MAPPING)
-    df = pd.merge(df, sor_df[['Team Name', 'SOR']], left_on='Matched Team Name', right_on='Team Name', how='left')
-    df.drop(columns=['Team Name_y'], inplace=True)
-    df.rename(columns={'Team Name_x': 'Team Name'}, inplace=True)
+# Save discrepancies to a CSV file
+discrepancies.to_csv(output_path, index=False)
 
-    # Convert PF and PA columns to numeric types
-    df['PF'] = pd.to_numeric(df['PF'], errors='coerce').fillna(0).astype(int)
-    df['PA'] = pd.to_numeric(df['PA'], errors='coerce').fillna(0).astype(int)
-
-    # Clean Wins-Losses columns
-    df['Conf. W-L'] = clean_wl_column(df['Conf. W-L'])
-    df['Overall W-L'] = clean_wl_column(df['Overall W-L'])
-
-    # Split Wins-Losses columns
-    conf_split = df['Conf. W-L'].str.split('-', expand=True).astype(int)
-    overall_split = df['Overall W-L'].str.split('-', expand=True).astype(int)
-
-    # Assign split columns back to the DataFrame
-    df['Conf Wins'], df['Conf Losses'] = conf_split[0], conf_split[1]
-    df['Overall Wins'], df['Overall Losses'] = overall_split[0], overall_split[1]
-
-    # Parse AP Wins and Losses from the AP column
-    if 'AP' in df.columns:
-        df['AP Wins'], df['AP Losses'] = parse_ap_column(df['AP'])
-    else:
-        # If 'AP' column doesn't exist, initialize AP Wins and Losses to 0
-        df['AP Wins'], df['AP Losses'] = 0, 0
-
-    # Drop original W-L columns and the AP column (optional)
-    df.drop(columns=['Conf. W-L', 'Overall W-L', 'AP'], inplace=True)
-
-    # Create derived metrics
-    df['Point Differential'] = df['PF'] - df['PA']
-    df['Win Percentage'] = df['Overall Wins'] / (df['Overall Wins'] + df['Overall Losses'])
-
-    return df
-
-def save_data(df, file_name):
-    """Save cleaned data to a CSV file."""
-    df.to_csv(file_name, index=False)
-    print(f"Cleaned data saved to {file_name}")
-
-def main():
-    raw_file = '/Users/bosnianboi/Documents/GitHub/I310D_project/raw_cfb_data.csv'
-    sor_file = '/Users/bosnianboi/Documents/GitHub/I310D_project/SOR.csv'
-    cleaned_file = '/Users/bosnianboi/Documents/GitHub/I310D_project/cleaned_cfb_data.csv'
-
-    raw_df = load_data(raw_file)
-    cleaned_df = transform_data(raw_df, sor_file)
-    save_data(cleaned_df, cleaned_file)
-
-if __name__ == "__main__":
-    main()
-
-
-
-
-
-
+print(f"Discrepancies saved to {output_path}!")
 

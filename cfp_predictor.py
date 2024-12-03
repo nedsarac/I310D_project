@@ -28,17 +28,17 @@ def calculate_team_scores(input_file, output_file="team_score.csv"):
 
     # Calculate Team Score
     df['Team Score'] = (
-        df['AP Wins'] * 8 +
+        df['AP Wins'] * 7 +
         (df['Conf Wins'] * df['Conference Multiplier'] * 5) +
         ((df['Overall Wins'] - df['Conf Wins']) * 5) +
         df['Point Differential'] * 0.1 +
-        df['SOR Score'] * 6  # Incorporate SOR with a significant weight
+        df['SOR Score'] * 4  # Incorporate SOR with a significant weight
     )
 
     # Apply penalties
     df['Unranked Losses'] = df['Overall Losses'] - df['AP Losses']
-    df['Team Score'] -= df['AP Losses'] * 3
-    df['Team Score'] -= df['Unranked Losses'] * 7
+    df['Team Score'] -= df['AP Losses'] * 6
+    df['Team Score'] -= df['Unranked Losses'] * 8
     df['Team Score'] -= df['Conf Losses'] * (3 / df['Conference Multiplier'])
     df['Team Score'] -= (df['Overall Losses'] - df['Conf Losses']) * 5
 
