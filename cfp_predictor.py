@@ -28,27 +28,27 @@ def calculate_team_scores(input_file, output_file="team_score.csv"):
 
     # Calculate Team Score
     df['Team Score'] = (
-        df['AP Wins'] * 7 +
+        df['AP Wins'] * 12 +
         (df['Conf Wins'] * df['Conference Multiplier'] * 5) +
-        ((df['Overall Wins'] - df['Conf Wins']) * 5) +
+        ((df['Overall Wins'] - df['Conf Wins']) * 6) +
         df['Point Differential'] * 0.1 +
-        df['SOR Score'] * 4  # Incorporate SOR with a significant weight
+        df['SOR Score'] * 20  # Incorporate SOR with a significant weight
     )
 
     # Apply penalties
     df['Unranked Losses'] = df['Overall Losses'] - df['AP Losses']
-    df['Team Score'] -= df['AP Losses'] * 6
-    df['Team Score'] -= df['Unranked Losses'] * 8
-    df['Team Score'] -= df['Conf Losses'] * (3 / df['Conference Multiplier'])
+    df['Team Score'] -= df['AP Losses'] * 10
+    df['Team Score'] -= df['Unranked Losses'] * 15
+    df['Team Score'] -= df['Conf Losses'] * (5 / df['Conference Multiplier'])
     df['Team Score'] -= (df['Overall Losses'] - df['Conf Losses']) * 5
 
     # Special case for FBSind teams
     df.loc[df['Conference'] == 'FBSind', 'Team Score'] = (
-        df['AP Wins'] * 8 +
+        df['AP Wins'] * 12 +
         df['Overall Wins'] * 5 -
         df['Overall Losses'] * 5 +
         df['Point Differential'] * 0.1 +
-        df['SOR Score'] * 6
+        df['SOR Score'] * 20
     )
 
     # Sort by Team Score in descending order
