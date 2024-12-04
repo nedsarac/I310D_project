@@ -1,5 +1,6 @@
 import pandas as pd
 
+
 def calculate_team_scores(input_file, output_file="team_score.csv"):
     """Calculate Team Scores based on provided weights and penalties, including SOR."""
     # Load team data
@@ -58,52 +59,63 @@ def calculate_team_scores(input_file, output_file="team_score.csv"):
     df[['Team Name', 'Conference', 'Team Score']].to_csv(output_file, index=False)
     print(f"Team scores saved to {output_file}!")
 
-def get_top_12_teams(conference_ranking_file, team_score_file, output_file="cfp_prediction.csv"):
-    """Determine the top 12 teams based on conference rankings and team scores."""
-    conf_ranking = pd.read_csv(conference_ranking_file)
+
+def get_top_12_teams(team_score_file, output_file="cfp_prediction.csv"):
+    """Rank teams based on Team Score with constraints for unique conferences."""
+    # Load team scores
     team_scores = pd.read_csv(team_score_file)
 
-    # Step 1: Get the top 4 conferences
-    top_4_conferences = conf_ranking.nsmallest(4, 'Conference Rank')['Conference'].tolist()
-    top_2_conferences = top_4_conferences[:2]
-    next_2_conferences = top_4_conferences[2:]
+    # Sort teams by Team Score in descending order
+    team_scores = team_scores.sort_values(by='Team Score', ascending=False).reset_index(drop=True)
 
-    # Step 2: Get the best team from the top 4 conferences
-    top_4_teams = []
-    for conference in top_4_conferences:
-        best_team = team_scores[team_scores['Conference'] == conference].sort_values(by='Team Score', ascending=False).iloc[0]
-        top_4_teams.append(best_team)
+    # Step 1: Select seeds 1–4 with unique conferences (excluding FBSind)
+    seeds_1_to_4 = []
+    used_conferences = set()
 
-    # Step 3: Assign seeds to the top 4 teams
-    top_4_df = pd.DataFrame(top_4_teams)
-    top_4_df = top_4_df.sort_values(by='Team Score', ascending=False).reset_index(drop=True)
-    top_4_df.loc[:1, 'Seed'] = [1, 2]  # Spots 1 and 2
-    top_4_df.loc[2:, 'Seed'] = [3, 4]  # Spots 3 and 4
+    for _, row in team_scores.iterrows():
+        if len(seeds_1_to_4) < 4 and row['Conference'] not in used_conferences and row['Conference'] != 'FBSind':
+            seeds_1_to_4.append(row)
+            used_conferences.add(row['Conference'])
 
-    # Step 4: Get the highest-ranked team from conferences ranked 5-10
-    remaining_conferences = conf_ranking[(conf_ranking['Conference Rank'] > 4) & (conf_ranking['Conference Rank'] <= 10)]['Conference'].tolist()
-    remaining_teams = team_scores[team_scores['Conference'].isin(remaining_conferences)]
-    seed_5_team = remaining_teams.sort_values(by='Team Score', ascending=False).iloc[0]
+    # If fewer than 4 unique conferences are found, raise an error
+    if len(seeds_1_to_4) < 4:
+        raise ValueError("Not enough unique conferences to fill seeds 1–4.")
 
-    # Step 5: Get the remaining best teams
-    crossed_off_teams = top_4_df['Team Name'].tolist() + [seed_5_team['Team Name']]
-    remaining_teams = team_scores[~team_scores['Team Name'].isin(crossed_off_teams)]
-    remaining_teams = remaining_teams.sort_values(by='Team Score', ascending=False).head(7)
+    # Step 2: Select remaining teams for seeds 5–12
+    remaining_teams = team_scores[~team_scores['Team Name'].isin([team['Team Name'] for team in seeds_1_to_4])]
+    seeds_5_to_12 = remaining_teams.head(8).to_dict('records')
 
-    # Step 6: Assign seeds
-    seed_5_df = pd.DataFrame([seed_5_team]).reset_index(drop=True)
-    seed_5_df['Seed'] = [5]
+    # Step 3: Ensure a 5th unique conference in seeds 5–12 (excluding FBSind)
+    fifth_conference_team = None
+    for _, row in remaining_teams.iterrows():
+        if row['Conference'] not in used_conferences and row['Conference'] != 'FBSind':
+            fifth_conference_team = row
+            used_conferences.add(row['Conference'])
+            break
 
-    remaining_teams = remaining_teams.reset_index(drop=True)
-    remaining_teams['Seed'] = range(6, 13)
+    # If a 5th unique conference team is found, ensure they are in seeds 5–12
+    if fifth_conference_team is not None:
+        # Replace the lowest-ranked team in seeds 5–12 with the 5th conference team
+        seeds_5_to_12[-1] = fifth_conference_team
 
-    # Combine all seeds into the final DataFrame
-    final_df = pd.concat([top_4_df, seed_5_df, remaining_teams]).reset_index(drop=True)
+    # Sort seeds 5–12 back by Team Score
+    seeds_5_to_12 = sorted(seeds_5_to_12, key=lambda x: x['Team Score'], reverse=True)
+
+    # Assign seeds
+    seeds_1_to_4_df = pd.DataFrame(seeds_1_to_4).reset_index(drop=True)
+    seeds_1_to_4_df['Seed'] = range(1, 5)
+
+    seeds_5_to_12_df = pd.DataFrame(seeds_5_to_12).reset_index(drop=True)
+    seeds_5_to_12_df['Seed'] = range(5, 13)
+
+    # Combine all seeds
+    final_df = pd.concat([seeds_1_to_4_df, seeds_5_to_12_df]).reset_index(drop=True)
     final_df = final_df[['Seed', 'Team Name', 'Conference', 'Team Score']]
 
     # Save to CSV
     final_df.to_csv(output_file, index=False)
     print(f"Top 12 seeds saved to {output_file}!")
+
 
 def main():
     # File paths
@@ -116,10 +128,21 @@ def main():
     calculate_team_scores(stats_file, team_score_file)
 
     # Determine top 12 teams and save to cfp_prediction.csv
-    get_top_12_teams(conference_ranking_file, team_score_file, top_12_seeds_file)
+    get_top_12_teams(team_score_file, top_12_seeds_file)
+
 
 if __name__ == "__main__":
     main()
+
+
+
+
+
+
+
+
+
+
 
 
 
